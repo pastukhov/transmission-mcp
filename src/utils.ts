@@ -125,6 +125,7 @@ export function formatTorrentJSON(torrent: any): any {
   return {
     id: torrent.id,
     name: torrent.name,
+    comment: torrent.comment || null,
     status: TorrentStatusLabels[torrent.status] || "Unknown",
     statusCode: torrent.status,
     percentDone: torrent.percentDone,
