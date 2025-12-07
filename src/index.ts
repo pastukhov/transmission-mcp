@@ -43,6 +43,7 @@ import {
   type GetStatsInput,
   type FreeSpaceInput
 } from "./schemas.js";
+import { type TransmissionConfig } from "./types.js";
 import {
   formatTorrentMarkdown,
   formatTorrentsMarkdown,
@@ -56,20 +57,24 @@ import {
   createErrorResponse
 } from "./utils.js";
 
-// Initialize Transmission client
-const transmissionConfig = {
+// Factories exported for testing
+export function createTransmissionClient(config: TransmissionConfig = {
   baseUrl: process.env.TRANSMISSION_URL || DEFAULT_TRANSMISSION_URL,
-  ...(process.env.TRANSMISSION_USERNAME && { username: process.env.TRANSMISSION_USERNAME }),
-  ...(process.env.TRANSMISSION_PASSWORD && { password: process.env.TRANSMISSION_PASSWORD })
-};
+  username: process.env.TRANSMISSION_USERNAME,
+  password: process.env.TRANSMISSION_PASSWORD
+}) {
+  return new Transmission({
+    baseUrl: config.baseUrl,
+    ...(config.username && { username: config.username }),
+    ...(config.password && { password: config.password })
+  });
+}
 
-const transmission = new Transmission(transmissionConfig);
-
-// Create MCP server
-const server = new McpServer({
-  name: "transmission-mcp-server",
-  version: "1.0.0"
-});
+export function createServer(transmission: Transmission) {
+  const server = new McpServer({
+    name: "transmission-mcp-server",
+    version: "1.0.0"
+  });
 
 /**
  * Tool 1: Add Torrent
@@ -1127,17 +1132,24 @@ Error Handling:
   }
 );
 
+  return server;
+}
+
 /**
  * Main server initialization
  */
 async function main() {
+  const transmission = createTransmissionClient();
+
   // Verify Transmission connection configuration
   console.error(`Transmission MCP Server starting...`);
-  console.error(`Connecting to: ${transmissionConfig.baseUrl}`);
+  console.error(`Connecting to: ${transmission.config.baseUrl}`);
 
-  if (!transmissionConfig.username) {
+  if (!transmission.config.username) {
     console.error("Note: No TRANSMISSION_USERNAME set (using unauthenticated connection)");
   }
+
+  const server = createServer(transmission);
 
   // Create transport
   const transport = new StdioServerTransport();
