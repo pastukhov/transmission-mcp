@@ -70,6 +70,49 @@ Add to your Claude Desktop configuration:
 npm start
 ```
 
+### Docker
+
+Build the image from the repo root:
+
+```bash
+docker build -t transmission-mcp .
+```
+
+Run the container (keep STDIN open for MCP, add `--network host` if Transmission runs on the host):
+
+```bash
+docker run --rm -i \
+  --network host \
+  -e TRANSMISSION_URL=http://localhost:9091 \
+  -e TRANSMISSION_USERNAME=your-username \
+  -e TRANSMISSION_PASSWORD=your-password \
+  transmission-mcp
+```
+
+### Codex CLI
+
+Point Codex to the local build or the Docker image by adding an MCP server entry to your `~/.config/codex/config.toml`:
+
+```toml
+[mcp_servers.transmission]
+# Option 1: use the local build
+command = "node"
+args = ["/path/to/transmission-mcp/dist/index.js"]
+env.TRANSMISSION_URL = "http://localhost:9091"
+env.TRANSMISSION_USERNAME = "your-username"
+env.TRANSMISSION_PASSWORD = "your-password"
+
+# Option 2: run through Docker (keeps STDIN open for MCP)
+command = "docker"
+args = [
+  "run", "--rm", "-i", "--network", "host",
+  "-e", "TRANSMISSION_URL=http://localhost:9091",
+  "-e", "TRANSMISSION_USERNAME=your-username",
+  "-e", "TRANSMISSION_PASSWORD=your-password",
+  "transmission-mcp"
+]
+```
+
 ## Available Tools
 
 ### Torrent Management
