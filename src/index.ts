@@ -9,7 +9,6 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { Transmission } from "@ctrl/transmission";
 import { ResponseFormat, QueueDirection, DEFAULT_TRANSMISSION_URL } from "./constants.js";
 import {
   AddTorrentSchema,
@@ -56,6 +55,7 @@ import {
   createToolResponse,
   createErrorResponse
 } from "./utils.js";
+import { TransmissionRpcClient } from "./rpcClient.js";
 
 // Factories exported for testing
 export function createTransmissionClient(config: TransmissionConfig = {
@@ -63,14 +63,14 @@ export function createTransmissionClient(config: TransmissionConfig = {
   username: process.env.TRANSMISSION_USERNAME,
   password: process.env.TRANSMISSION_PASSWORD
 }) {
-  return new Transmission({
+  return new TransmissionRpcClient({
     baseUrl: config.baseUrl,
-    ...(config.username && { username: config.username }),
-    ...(config.password && { password: config.password })
+    username: config.username,
+    password: config.password
   });
 }
 
-export function createServer(transmission: Transmission) {
+export function createServer(transmission: TransmissionRpcClient) {
   const server = new McpServer({
     name: "transmission-mcp-server",
     version: "1.0.0"
@@ -129,23 +129,40 @@ Error Handling:
       }
 
       // Determine if it's a magnet URI, URL, or base64 content
-      let response: any;
+      let result: any;
       if (params.torrent.startsWith("magnet:")) {
-        response = await transmission.addMagnet(params.torrent, options);
+        result = await transmission.call({
+          method: "torrent_add",
+          params: {
+            download_dir: "/downloads",
+            paused: false,
+            ...options,
+            filename: params.torrent
+          }
+        });
       } else if (/^https?:\/\//i.test(params.torrent)) {
-        // URL: pass as filename so Transmission downloads it server-side
-        const args = {
-          "download-dir": "/downloads",
-          paused: false,
-          ...options,
-          filename: params.torrent
-        };
-        response = await transmission.request("torrent-add", args);
+        result = await transmission.call({
+          method: "torrent_add",
+          params: {
+            download_dir: "/downloads",
+            paused: false,
+            ...options,
+            filename: params.torrent
+          }
+        });
       } else {
-        response = await transmission.addTorrent(params.torrent, options);
+        result = await transmission.call({
+          method: "torrent_add",
+          params: {
+            download_dir: "/downloads",
+            paused: false,
+            ...options,
+            metainfo: params.torrent
+          }
+        });
       }
 
-      const torrent = response.arguments?.["torrent-added"] || response.arguments?.["torrent-duplicate"];
+      const torrent = result?.torrents?.[0] || result?.["torrent-added"] || result?.["torrent-duplicate"];
 
       if (!torrent) {
         return createToolResponse("Error: Failed to add torrent. No response from Transmission.");
@@ -216,8 +233,32 @@ Error Handling:
   },
   async (params: ListTorrentsInput) => {
     try {
-      const response = await transmission.listTorrents();
-      const allTorrents = response.arguments?.torrents || [];
+      const response = await transmission.call<{ torrents: any[] }>({
+        method: "torrent_get",
+        params: {
+          fields: [
+            "id",
+            "name",
+            "status",
+            "percent_done",
+            "size_when_done",
+            "downloaded_ever",
+            "uploaded_ever",
+            "upload_ratio",
+            "rate_download",
+            "rate_upload",
+            "eta",
+            "peers_connected",
+            "added_date",
+            "done_date",
+            "labels",
+            "error",
+            "error_string",
+            "comment"
+          ]
+        }
+      });
+      const allTorrents = response?.torrents || [];
       const total = allTorrents.length;
 
       // Apply pagination
@@ -304,8 +345,14 @@ Error Handling:
   async (params: GetTorrentInput) => {
     try {
       const ids = normalizeTorrentIds(params.ids);
-      const response = await transmission.listTorrents(ids as any);
-      const torrents = response.arguments?.torrents || [];
+      const response = await transmission.call<{ torrents: any[] }>({
+        method: "torrent_get",
+        params: {
+          ids,
+          fields: ["id", "name", "status", "percent_done", "size_when_done", "downloaded_ever", "uploaded_ever", "upload_ratio", "rate_download", "rate_upload", "eta", "peers_connected", "added_date", "done_date", "labels", "error", "error_string", "comment"]
+        }
+      });
+      const torrents = response?.torrents || [];
 
       if (torrents.length === 0) {
         return createToolResponse("No torrents found matching the specified IDs.");
@@ -372,7 +419,13 @@ Error Handling:
   async (params: RemoveTorrentInput) => {
     try {
       const ids = normalizeTorrentIds(params.ids);
-      await transmission.removeTorrent(ids as any, params.delete_local_data);
+      await transmission.call({
+        method: "torrent_remove",
+        params: {
+          ids,
+          delete_local_data: params.delete_local_data
+        }
+      });
 
       const idsStr = params.ids === "all" ? "all torrents" :
         Array.isArray(params.ids) ? `torrents ${params.ids.join(", ")}` :
@@ -436,7 +489,10 @@ Error Handling:
   async (params: PauseTorrentInput) => {
     try {
       const ids = normalizeTorrentIds(params.ids);
-      await transmission.pauseTorrent(ids as any);
+      await transmission.call({
+        method: "torrent_stop",
+        params: { ids }
+      });
 
       const idsStr = params.ids === "all" ? "all torrents" :
         Array.isArray(params.ids) ? `torrents ${params.ids.join(", ")}` :
@@ -495,7 +551,10 @@ Error Handling:
   async (params: ResumeTorrentInput) => {
     try {
       const ids = normalizeTorrentIds(params.ids);
-      await transmission.resumeTorrent(ids as any);
+      await transmission.call({
+        method: "torrent_start",
+        params: { ids }
+      });
 
       const idsStr = params.ids === "all" ? "all torrents" :
         Array.isArray(params.ids) ? `torrents ${params.ids.join(", ")}` :
@@ -554,7 +613,10 @@ Error Handling:
   async (params: VerifyTorrentInput) => {
     try {
       const ids = normalizeTorrentIds(params.ids);
-      await transmission.verifyTorrent(ids as any);
+      await transmission.call({
+        method: "torrent_verify",
+        params: { ids }
+      });
 
       const idsStr = params.ids === "all" ? "all torrents" :
         Array.isArray(params.ids) ? `torrents ${params.ids.join(", ")}` :
@@ -613,7 +675,10 @@ Error Handling:
   async (params: ReannounceTorrentInput) => {
     try {
       const ids = normalizeTorrentIds(params.ids);
-      await transmission.reannounceTorrent(ids as any);
+      await transmission.call({
+        method: "torrent_reannounce",
+        params: { ids }
+      });
 
       const idsStr = params.ids === "all" ? "all torrents" :
         Array.isArray(params.ids) ? `torrents ${params.ids.join(", ")}` :
@@ -685,7 +750,7 @@ Error Handling:
         delete args.ids; // Transmission treats omitted ids as "all"
       }
 
-      await transmission.request("torrent-set-location", args);
+      await transmission.call({ method: "torrent_set_location", params: args });
 
       const idsStr = params.ids === "all" ? "all torrents" :
         Array.isArray(params.ids) ? `torrents ${params.ids.join(", ")}` :
@@ -767,7 +832,10 @@ Error Handling:
       if (params.seedRatioLimit !== undefined) options.seedRatioLimit = params.seedRatioLimit;
       if (params.seedRatioMode !== undefined) options.seedRatioMode = params.seedRatioMode;
 
-      await transmission.setTorrent(ids as any, options);
+      await transmission.call({
+        method: "torrent_set",
+        params: { ids, ...options }
+      });
 
       const idsStr = params.ids === "all" ? "all torrents" :
         Array.isArray(params.ids) ? `torrents ${params.ids.join(", ")}` :
@@ -831,16 +899,16 @@ Error Handling:
 
       switch (params.direction) {
         case QueueDirection.TOP:
-          await transmission.queueTop(ids as any);
+          await transmission.call({ method: "queue_move_top", params: { ids } });
           break;
         case QueueDirection.UP:
-          await transmission.queueUp(ids as any);
+          await transmission.call({ method: "queue_move_up", params: { ids } });
           break;
         case QueueDirection.DOWN:
-          await transmission.queueDown(ids as any);
+          await transmission.call({ method: "queue_move_down", params: { ids } });
           break;
         case QueueDirection.BOTTOM:
-          await transmission.queueBottom(ids as any);
+          await transmission.call({ method: "queue_move_bottom", params: { ids } });
           break;
       }
 
@@ -904,8 +972,9 @@ Error Handling:
   },
   async (params: GetSessionInput) => {
     try {
-      const response = await transmission.getSession();
-      const session = response.arguments;
+      const session = await transmission.call({
+        method: "session_get"
+      });
 
       if (params.response_format === ResponseFormat.JSON) {
         const result = JSON.stringify(session, null, 2);
@@ -971,18 +1040,21 @@ Error Handling:
     try {
       const settings: any = {};
 
-      if (params.alt_speed_down !== undefined) settings["alt-speed-down"] = params.alt_speed_down;
-      if (params.alt_speed_up !== undefined) settings["alt-speed-up"] = params.alt_speed_up;
-      if (params.alt_speed_enabled !== undefined) settings["alt-speed-enabled"] = params.alt_speed_enabled;
-      if (params.download_dir !== undefined) settings["download-dir"] = params.download_dir;
-      if (params.speed_limit_down !== undefined) settings["speed-limit-down"] = params.speed_limit_down;
-      if (params.speed_limit_down_enabled !== undefined) settings["speed-limit-down-enabled"] = params.speed_limit_down_enabled;
-      if (params.speed_limit_up !== undefined) settings["speed-limit-up"] = params.speed_limit_up;
-      if (params.speed_limit_up_enabled !== undefined) settings["speed-limit-up-enabled"] = params.speed_limit_up_enabled;
+      if (params.alt_speed_down !== undefined) settings["alt_speed_down"] = params.alt_speed_down;
+      if (params.alt_speed_up !== undefined) settings["alt_speed_up"] = params.alt_speed_up;
+      if (params.alt_speed_enabled !== undefined) settings["alt_speed_enabled"] = params.alt_speed_enabled;
+      if (params.download_dir !== undefined) settings["download_dir"] = params.download_dir;
+      if (params.speed_limit_down !== undefined) settings["speed_limit_down"] = params.speed_limit_down;
+      if (params.speed_limit_down_enabled !== undefined) settings["speed_limit_down_enabled"] = params.speed_limit_down_enabled;
+      if (params.speed_limit_up !== undefined) settings["speed_limit_up"] = params.speed_limit_up;
+      if (params.speed_limit_up_enabled !== undefined) settings["speed_limit_up_enabled"] = params.speed_limit_up_enabled;
       if (params.seedRatioLimit !== undefined) settings.seedRatioLimit = params.seedRatioLimit;
       if (params.seedRatioLimited !== undefined) settings.seedRatioLimited = params.seedRatioLimited;
 
-      await transmission.setSession(settings);
+      await transmission.call({
+        method: "session_set",
+        params: settings
+      });
 
       if (params.response_format === ResponseFormat.JSON) {
         const result = JSON.stringify({
@@ -1038,8 +1110,7 @@ Error Handling:
   },
   async (params: GetStatsInput) => {
     try {
-      const response: any = await transmission.request("session-stats");
-      const stats: any = response._data?.arguments || response.arguments || response._data?.result || response.result || {};
+      const stats: any = await transmission.call({ method: "session_stats" });
 
       if (params.response_format === ResponseFormat.JSON) {
         const result = JSON.stringify({
@@ -1102,9 +1173,12 @@ Error Handling:
   },
   async (params: FreeSpaceInput) => {
     try {
-      const response = await transmission.freeSpace(params.path);
-      const freeBytes = response.arguments["size-bytes"];
-      const path = response.arguments.path;
+      const response = await transmission.call({
+        method: "free_space",
+        params: { path: params.path }
+      });
+      const freeBytes = response["size_bytes"];
+      const path = response.path;
 
       if (params.response_format === ResponseFormat.JSON) {
         const result = JSON.stringify({
@@ -1143,9 +1217,8 @@ async function main() {
 
   // Verify Transmission connection configuration
   console.error(`Transmission MCP Server starting...`);
-  console.error(`Connecting to: ${transmission.config.baseUrl}`);
-
-  if (!transmission.config.username) {
+  console.error(`Connecting to: ${process.env.TRANSMISSION_URL || DEFAULT_TRANSMISSION_URL}`);
+  if (!process.env.TRANSMISSION_USERNAME) {
     console.error("Note: No TRANSMISSION_USERNAME set (using unauthenticated connection)");
   }
 

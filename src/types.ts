@@ -81,3 +81,13 @@ export interface SessionStats {
     seconds_active: number;
   };
 }
+
+export interface RpcRequestOptions {
+  method: string;
+  params?: Record<string, any>;
+}
+
+export interface RpcResponse<T = any> {
+  result?: T;
+  error?: { code: number; message: string; data?: any };
+}
