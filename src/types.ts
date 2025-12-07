@@ -29,9 +29,9 @@ export interface FormatParams {
 }
 
 /**
- * Torrent ID input (can be single ID, array of IDs, or "all")
+ * Torrent ID input (can be single ID/hash, array, or special selectors like "all" or "recently_active")
  */
-export type TorrentIdInput = number | number[] | "all";
+export type TorrentIdInput = number | string | Array<number | string> | "all" | "recently_active";
 
 /**
  * Formatted torrent information for display
@@ -61,23 +61,23 @@ export interface FormattedTorrent {
  * Session statistics
  */
 export interface SessionStats {
-  activeTorrentCount: number;
-  downloadSpeed: number;
-  uploadSpeed: number;
-  pausedTorrentCount: number;
-  torrentCount: number;
-  cumulative?: {
-    downloadedBytes: number;
-    uploadedBytes: number;
-    filesAdded: number;
-    sessionCount: number;
-    secondsActive: number;
+  active_torrent_count: number;
+  download_speed: number;
+  upload_speed: number;
+  paused_torrent_count: number;
+  torrent_count: number;
+  cumulative_stats?: {
+    downloaded_bytes: number;
+    uploaded_bytes: number;
+    files_added: number;
+    session_count: number;
+    seconds_active: number;
   };
-  current?: {
-    downloadedBytes: number;
-    uploadedBytes: number;
-    filesAdded: number;
-    sessionCount: number;
-    secondsActive: number;
+  current_stats?: {
+    downloaded_bytes: number;
+    uploaded_bytes: number;
+    files_added: number;
+    session_count: number;
+    seconds_active: number;
   };
 }

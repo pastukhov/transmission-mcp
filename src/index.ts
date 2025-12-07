@@ -127,6 +127,15 @@ Error Handling:
       let response: any;
       if (params.torrent.startsWith("magnet:")) {
         response = await transmission.addMagnet(params.torrent, options);
+      } else if (/^https?:\/\//i.test(params.torrent)) {
+        // URL: pass as filename so Transmission downloads it server-side
+        const args = {
+          "download-dir": "/downloads",
+          paused: false,
+          ...options,
+          filename: params.torrent
+        };
+        response = await transmission.request("torrent-add", args);
       } else {
         response = await transmission.addTorrent(params.torrent, options);
       }
@@ -661,7 +670,17 @@ Error Handling:
   async (params: MoveTorrentInput) => {
     try {
       const ids = normalizeTorrentIds(params.ids);
-      await transmission.moveTorrent(ids as any, params.location);
+      const args: any = {
+        ids,
+        move: params.move,
+        location: params.location
+      };
+
+      if (args.ids === undefined) {
+        delete args.ids; // Transmission treats omitted ids as "all"
+      }
+
+      await transmission.request("torrent-set-location", args);
 
       const idsStr = params.ids === "all" ? "all torrents" :
         Array.isArray(params.ids) ? `torrents ${params.ids.join(", ")}` :
@@ -1014,18 +1033,18 @@ Error Handling:
   },
   async (params: GetStatsInput) => {
     try {
-      const response = await transmission.getSession();
-      const stats: any = response.arguments;
+      const response: any = await transmission.request("session-stats");
+      const stats: any = response._data?.arguments || response.arguments || response._data?.result || response.result || {};
 
       if (params.response_format === ResponseFormat.JSON) {
         const result = JSON.stringify({
-          activeTorrentCount: stats["activeTorrentCount"] || 0,
-          pausedTorrentCount: stats["pausedTorrentCount"] || 0,
-          torrentCount: stats["torrentCount"] || 0,
-          downloadSpeed: stats["downloadSpeed"] || 0,
-          uploadSpeed: stats["uploadSpeed"] || 0,
-          "current-stats": stats["current-stats"],
-          "cumulative-stats": stats["cumulative-stats"]
+          active_torrent_count: stats["active_torrent_count"] ?? stats["activeTorrentCount"] ?? 0,
+          paused_torrent_count: stats["paused_torrent_count"] ?? stats["pausedTorrentCount"] ?? 0,
+          torrent_count: stats["torrent_count"] ?? stats["torrentCount"] ?? 0,
+          download_speed: stats["download_speed"] ?? stats["downloadSpeed"] ?? 0,
+          upload_speed: stats["upload_speed"] ?? stats["uploadSpeed"] ?? 0,
+          current_stats: stats["current_stats"] ?? stats["current-stats"],
+          cumulative_stats: stats["cumulative_stats"] ?? stats["cumulative-stats"]
         }, null, 2);
 
         const truncated = checkAndTruncate(result, 1, "stats");

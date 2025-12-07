@@ -179,35 +179,43 @@ export function formatSessionMarkdown(session: any): string {
  * Format session statistics as markdown
  */
 export function formatStatsMarkdown(stats: any): string {
+  const activeTorrentCount = stats.active_torrent_count ?? stats.activeTorrentCount ?? 0;
+  const pausedTorrentCount = stats.paused_torrent_count ?? stats.pausedTorrentCount ?? 0;
+  const torrentCount = stats.torrent_count ?? stats.torrentCount ?? 0;
+  const downloadSpeed = stats.download_speed ?? stats.downloadSpeed ?? 0;
+  const uploadSpeed = stats.upload_speed ?? stats.uploadSpeed ?? 0;
+  const currentStats = stats.current_stats ?? stats["current-stats"] ?? stats.currentStats;
+  const cumulativeStats = stats.cumulative_stats ?? stats["cumulative-stats"] ?? stats.cumulativeStats;
+
   const lines: string[] = ["# Session Statistics"];
   lines.push("");
 
   lines.push("## Current Session");
-  lines.push(`- **Active Torrents**: ${stats.activeTorrentCount}`);
-  lines.push(`- **Paused Torrents**: ${stats.pausedTorrentCount}`);
-  lines.push(`- **Total Torrents**: ${stats.torrentCount}`);
-  lines.push(`- **Download Speed**: ${formatSpeed(stats.downloadSpeed)}`);
-  lines.push(`- **Upload Speed**: ${formatSpeed(stats.uploadSpeed)}`);
+  lines.push(`- **Active Torrents**: ${activeTorrentCount}`);
+  lines.push(`- **Paused Torrents**: ${pausedTorrentCount}`);
+  lines.push(`- **Total Torrents**: ${torrentCount}`);
+  lines.push(`- **Download Speed**: ${formatSpeed(downloadSpeed)}`);
+  lines.push(`- **Upload Speed**: ${formatSpeed(uploadSpeed)}`);
   lines.push("");
 
-  if (stats["current-stats"]) {
-    const current = stats["current-stats"];
+  if (currentStats) {
+    const current = currentStats;
     lines.push("## Current Session Totals");
-    lines.push(`- **Downloaded**: ${formatBytes(current.downloadedBytes)}`);
-    lines.push(`- **Uploaded**: ${formatBytes(current.uploadedBytes)}`);
-    lines.push(`- **Files Added**: ${current.filesAdded}`);
-    lines.push(`- **Session Duration**: ${formatDuration(current.secondsActive)}`);
+    lines.push(`- **Downloaded**: ${formatBytes(current.downloaded_bytes ?? current.downloadedBytes)}`);
+    lines.push(`- **Uploaded**: ${formatBytes(current.uploaded_bytes ?? current.uploadedBytes)}`);
+    lines.push(`- **Files Added**: ${current.files_added ?? current.filesAdded}`);
+    lines.push(`- **Session Duration**: ${formatDuration(current.seconds_active ?? current.secondsActive)}`);
     lines.push("");
   }
 
-  if (stats["cumulative-stats"]) {
-    const cumulative = stats["cumulative-stats"];
+  if (cumulativeStats) {
+    const cumulative = cumulativeStats;
     lines.push("## All-Time Totals");
-    lines.push(`- **Downloaded**: ${formatBytes(cumulative.downloadedBytes)}`);
-    lines.push(`- **Uploaded**: ${formatBytes(cumulative.uploadedBytes)}`);
-    lines.push(`- **Files Added**: ${cumulative.filesAdded}`);
-    lines.push(`- **Total Active Time**: ${formatDuration(cumulative.secondsActive)}`);
-    lines.push(`- **Sessions**: ${cumulative.sessionCount}`);
+    lines.push(`- **Downloaded**: ${formatBytes(cumulative.downloaded_bytes ?? cumulative.downloadedBytes)}`);
+    lines.push(`- **Uploaded**: ${formatBytes(cumulative.uploaded_bytes ?? cumulative.uploadedBytes)}`);
+    lines.push(`- **Files Added**: ${cumulative.files_added ?? cumulative.filesAdded}`);
+    lines.push(`- **Total Active Time**: ${formatDuration(cumulative.seconds_active ?? cumulative.secondsActive)}`);
+    lines.push(`- **Sessions**: ${cumulative.session_count ?? cumulative.sessionCount}`);
     lines.push("");
   }
 
@@ -241,13 +249,27 @@ export function checkAndTruncate(
 /**
  * Normalize torrent IDs for API calls
  */
-export function normalizeTorrentIds(ids: TorrentIdInput): number[] | undefined {
+export function normalizeTorrentIds(ids: TorrentIdInput): Array<number | string> | string | undefined {
   if (ids === "all") {
     return undefined; // Transmission API uses undefined for "all"
   }
-  if (Array.isArray(ids)) {
-    return ids;
+
+  if (ids === "recently_active" || ids === "recently-active") {
+    return "recently-active"; // Transmission expects hyphenated form
   }
+
+  if (Array.isArray(ids)) {
+    return ids.map((id) => {
+      if (id === "recently_active" || id === "recently-active") return "recently-active";
+      if (typeof id === "string" && /^\d+$/.test(id)) return Number(id);
+      return id;
+    });
+  }
+
+  if (typeof ids === "string" && /^\d+$/.test(ids)) {
+    return [Number(ids)];
+  }
+
   return [ids];
 }
 

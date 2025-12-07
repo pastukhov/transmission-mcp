@@ -26,8 +26,8 @@ export const OffsetSchema = z.number()
 
 // Torrent ID schemas
 export const TorrentIdSchema = z.preprocess((value) => {
-  // Accept numeric strings and string arrays by coercing to numbers.
-  if (value === "all") return value;
+  // Accept numeric strings and string arrays by coercing to numbers; allow hash strings and recently_active.
+  if (value === "all" || value === "recently_active" || value === "recently-active") return value;
   if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
   if (Array.isArray(value)) {
     return value.map((item) => (typeof item === "string" && /^\d+$/.test(item) ? Number(item) : item));
@@ -35,9 +35,11 @@ export const TorrentIdSchema = z.preprocess((value) => {
   return value;
 }, z.union([
   z.number().int().positive(),
-  z.array(z.number().int().positive()),
-  z.literal("all")
-])).describe("Torrent ID(s) to operate on - can be a single ID, array of IDs, or 'all'");
+  z.string().min(1),
+  z.array(z.union([z.number().int().positive(), z.string().min(1)])),
+  z.literal("all"),
+  z.literal("recently_active")
+])).describe("Torrent ID(s) to operate on - can be a single ID, hash string, array of IDs, or 'all'");
 
 // Tool input schemas
 
