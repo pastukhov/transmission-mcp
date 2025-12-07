@@ -56,37 +56,51 @@ export function formatDate(timestamp: number): string {
  * Format torrent data as markdown
  */
 export function formatTorrentMarkdown(torrent: any): string {
+  const percentDone = torrent.percent_done ?? torrent.percentDone ?? torrent.percent_done ?? torrent.percentDone ?? 0;
+  const sizeWhenDone = torrent.size_when_done ?? torrent.sizeWhenDone ?? 0;
+  const downloadedEver = torrent.downloaded_ever ?? torrent.downloadedEver ?? 0;
+  const uploadedEver = torrent.uploaded_ever ?? torrent.uploadedEver ?? 0;
+  const uploadRatio = torrent.upload_ratio ?? torrent.uploadRatio ?? 0;
+  const rateDownload = torrent.rate_download ?? torrent.rateDownload ?? 0;
+  const rateUpload = torrent.rate_upload ?? torrent.rateUpload ?? 0;
+  const peersConnected = torrent.peers_connected ?? torrent.peersConnected ?? 0;
+  const addedDate = torrent.added_date ?? torrent.addedDate ?? 0;
+  const doneDate = torrent.done_date ?? torrent.doneDate ?? 0;
+  const labels = torrent.labels ?? [];
+  const error = torrent.error ?? 0;
+  const errorString = torrent.error_string ?? torrent.errorString;
+
   const lines: string[] = [];
 
   lines.push(`## ${torrent.name}`);
   lines.push("");
   lines.push(`- **ID**: ${torrent.id}`);
   lines.push(`- **Status**: ${TorrentStatusLabels[torrent.status] || "Unknown"}`);
-  lines.push(`- **Progress**: ${(torrent.percentDone * 100).toFixed(2)}%`);
-  lines.push(`- **Size**: ${formatBytes(torrent.sizeWhenDone)}`);
-  lines.push(`- **Downloaded**: ${formatBytes(torrent.downloadedEver)}`);
-  lines.push(`- **Uploaded**: ${formatBytes(torrent.uploadedEver)}`);
-  lines.push(`- **Ratio**: ${torrent.uploadRatio.toFixed(2)}`);
-  lines.push(`- **Download Speed**: ${formatSpeed(torrent.rateDownload)}`);
-  lines.push(`- **Upload Speed**: ${formatSpeed(torrent.rateUpload)}`);
+  lines.push(`- **Progress**: ${(percentDone * 100).toFixed(2)}%`);
+  lines.push(`- **Size**: ${formatBytes(sizeWhenDone)}`);
+  lines.push(`- **Downloaded**: ${formatBytes(downloadedEver)}`);
+  lines.push(`- **Uploaded**: ${formatBytes(uploadedEver)}`);
+  lines.push(`- **Ratio**: ${uploadRatio.toFixed(2)}`);
+  lines.push(`- **Download Speed**: ${formatSpeed(rateDownload)}`);
+  lines.push(`- **Upload Speed**: ${formatSpeed(rateUpload)}`);
 
   if (torrent.eta > 0 && torrent.eta < 31536000) {
     lines.push(`- **ETA**: ${formatDuration(torrent.eta)}`);
   }
 
-  lines.push(`- **Peers**: ${torrent.peersConnected}`);
-  lines.push(`- **Added**: ${formatDate(torrent.addedDate)}`);
+  lines.push(`- **Peers**: ${peersConnected}`);
+  lines.push(`- **Added**: ${formatDate(addedDate)}`);
 
-  if (torrent.doneDate && torrent.doneDate > 0) {
-    lines.push(`- **Completed**: ${formatDate(torrent.doneDate)}`);
+  if (doneDate && doneDate > 0) {
+    lines.push(`- **Completed**: ${formatDate(doneDate)}`);
   }
 
-  if (torrent.labels && torrent.labels.length > 0) {
-    lines.push(`- **Labels**: ${torrent.labels.join(", ")}`);
+  if (labels && labels.length > 0) {
+    lines.push(`- **Labels**: ${labels.join(", ")}`);
   }
 
-  if (torrent.error !== 0 && torrent.errorString) {
-    lines.push(`- **Error**: ${torrent.errorString}`);
+  if (error !== 0 && errorString) {
+    lines.push(`- **Error**: ${errorString}`);
   }
 
   lines.push("");
@@ -122,26 +136,41 @@ export function formatTorrentsMarkdown(torrents: any[], total?: number): string 
  * Format torrent data as JSON
  */
 export function formatTorrentJSON(torrent: any): any {
+  const percentDone = torrent.percent_done ?? torrent.percentDone ?? 0;
+  const sizeWhenDone = torrent.size_when_done ?? torrent.sizeWhenDone ?? 0;
+  const downloadedEver = torrent.downloaded_ever ?? torrent.downloadedEver ?? 0;
+  const uploadedEver = torrent.uploaded_ever ?? torrent.uploadedEver ?? 0;
+  const uploadRatio = torrent.upload_ratio ?? torrent.uploadRatio ?? 0;
+  const rateDownload = torrent.rate_download ?? torrent.rateDownload ?? 0;
+  const rateUpload = torrent.rate_upload ?? torrent.rateUpload ?? 0;
+  const eta = torrent.eta ?? torrent.etaIdle ?? torrent.eta_idl ?? torrent.eta_idle ?? torrent.eta; // best effort
+  const peersConnected = torrent.peers_connected ?? torrent.peersConnected ?? 0;
+  const addedDate = torrent.added_date ?? torrent.addedDate ?? 0;
+  const doneDate = torrent.done_date ?? torrent.doneDate ?? null;
+  const labels = torrent.labels ?? [];
+  const error = torrent.error ?? 0;
+  const errorString = torrent.error_string ?? torrent.errorString ?? null;
+
   return {
     id: torrent.id,
     name: torrent.name,
     comment: torrent.comment || null,
     status: TorrentStatusLabels[torrent.status] || "Unknown",
     statusCode: torrent.status,
-    percentDone: torrent.percentDone,
-    sizeWhenDone: torrent.sizeWhenDone,
-    downloadedEver: torrent.downloadedEver,
-    uploadedEver: torrent.uploadedEver,
-    uploadRatio: torrent.uploadRatio,
-    rateDownload: torrent.rateDownload,
-    rateUpload: torrent.rateUpload,
-    eta: torrent.eta,
-    peersConnected: torrent.peersConnected,
-    addedDate: torrent.addedDate,
-    doneDate: torrent.doneDate || null,
-    labels: torrent.labels || [],
-    error: torrent.error,
-    errorString: torrent.errorString || null
+    percentDone,
+    sizeWhenDone,
+    downloadedEver,
+    uploadedEver,
+    uploadRatio,
+    rateDownload,
+    rateUpload,
+    eta,
+    peersConnected,
+    addedDate,
+    doneDate,
+    labels,
+    error,
+    errorString
   };
 }
 

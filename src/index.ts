@@ -237,24 +237,12 @@ Error Handling:
         method: "torrent_get",
         params: {
           fields: [
-            "id",
-            "name",
-            "status",
-            "percent_done",
-            "size_when_done",
-            "downloaded_ever",
-            "uploaded_ever",
-            "upload_ratio",
-            "rate_download",
-            "rate_upload",
-            "eta",
-            "peers_connected",
-            "added_date",
-            "done_date",
-            "labels",
-            "error",
-            "error_string",
-            "comment"
+            "id", "name", "status", "percent_done", "percentDone",
+            "size_when_done", "sizeWhenDone", "downloaded_ever", "downloadedEver",
+            "uploaded_ever", "uploadedEver", "upload_ratio", "uploadRatio",
+            "rate_download", "rateUpload", "eta", "peers_connected", "peersConnected",
+            "added_date", "addedDate", "done_date", "doneDate", "labels",
+            "error", "error_string", "errorString", "comment"
           ]
         }
       });
@@ -349,7 +337,7 @@ Error Handling:
         method: "torrent_get",
         params: {
           ids,
-          fields: ["id", "name", "status", "percent_done", "size_when_done", "downloaded_ever", "uploaded_ever", "upload_ratio", "rate_download", "rate_upload", "eta", "peers_connected", "added_date", "done_date", "labels", "error", "error_string", "comment"]
+          fields: ["id", "name", "status", "percent_done", "percentDone", "size_when_done", "sizeWhenDone", "downloaded_ever", "downloadedEver", "uploaded_ever", "uploadedEver", "upload_ratio", "uploadRatio", "rate_download", "rateUpload", "eta", "peers_connected", "peersConnected", "added_date", "addedDate", "done_date", "doneDate", "labels", "error", "error_string", "errorString", "comment"]
         }
       });
       const torrents = response?.torrents || [];
@@ -1177,7 +1165,7 @@ Error Handling:
         method: "free_space",
         params: { path: params.path }
       });
-      const freeBytes = response["size_bytes"];
+      const freeBytes = response["size_bytes"] ?? response["size-bytes"];
       const path = response.path;
 
       if (params.response_format === ResponseFormat.JSON) {
@@ -1234,8 +1222,10 @@ async function main() {
   console.error("Available tools: 15 (torrent management, queue control, session configuration)");
 }
 
-// Run the server
-main().catch((error) => {
-  console.error("Fatal error starting server:", error);
-  process.exit(1);
-});
+// Run the server when not skipped (allows clean imports in tests/CLIs)
+if (!process.env.MCP_SKIP_MAIN) {
+  main().catch((error) => {
+    console.error("Fatal error starting server:", error);
+    process.exit(1);
+  });
+}
